@@ -97,37 +97,39 @@ exports.loginUser = async (req, res) => {
    GOOGLE AUTH FLOW
    ============================================== */
 // @route   POST /api/auth/google
+
 exports.googleLogin = async (req, res) => {
   try {
-    const { token } = req.body; // ID Token from Frontend
-
-    // 1. Verify Token with Google
+    const { token } = req.body;
     const ticket = await client.verifyIdToken({
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
     
     const { name, email } = ticket.getPayload(); 
-
-    // 2. Check if user exists
     let user = await User.findOne({ email });
 
     if (user) {
-      // User exists -> Log them in via Cookie
       sendTokenResponse(user, 200, res);
     } else {
-      // User doesn't exist -> Register them
+ 
+      let uniqueUsername = name;
+      const usernameExists = await User.findOne({ username: name });
+      
+      if (usernameExists) {
+        uniqueUsername = `${name}${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+
       const randomPassword = crypto.randomBytes(16).toString('hex');
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(randomPassword, salt);
 
       user = await User.create({
-        username: name, // Google name
+        username: uniqueUsername, // Use the unique version
         email: email,
         password: hashedPassword,
       });
 
-      // Register via Cookie
       sendTokenResponse(user, 201, res);
     }
   } catch (error) {
@@ -222,5 +224,114 @@ exports.resetPassword = async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Clear auth cookie
+// @route   POST /api/auth/logout
+exports.logoutUser = (req, res) => {
+  res.cookie('token', '', {
+    httpOnly: true,
+    expires: new Date(0) // Expire immediately
+  });
+  
+  res.status(200).json({ message: 'Logged out successfully' });
+};
+
+/* ==============================================
+   DELETE ACCOUNT
+   ============================================== */
+// @desc    Delete user account and clear cookie
+// @route   DELETE /api/auth/delete-account
+exports.deleteAccount = async (req, res) => {
+  try {
+    // 1. Find user by ID (from protect middleware)
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // 2. Remove the user from DB
+    await user.deleteOne();
+
+    // 3. Clear the auth cookie so they are logged out
+    res.cookie('token', '', {
+      httpOnly: true,
+      expires: new Date(0),
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Account deleted successfully. You can now register fresh!' 
+    });
+
+  } catch (error) {
+    console.error("Delete Account Error:", error);
+    res.status(500).json({ message: 'Server error during account deletion' });
+  }
+};
+
+/* ==============================================
+   RENAME USER
+   ============================================== */
+// @desc    Update username
+// @route   PUT /api/auth/rename
+exports.renameUser = async (req, res) => {
+  try {
+    const { newUsername } = req.body;
+
+    if (!newUsername) {
+      return res.status(400).json({ message: 'Please provide a new username' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.username = newUsername;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Username updated successfully',
+      username: user.username
+    });
+  } catch (error) {
+    console.error("Rename User Error:", error);
+    res.status(500).json({ message: 'Server error during rename' });
+  }
+};
+
+/* ==============================================
+   DELETE ACCOUNT
+   ============================================== */
+// @desc    Delete user account and clear cookie
+// @route   DELETE /api/auth/delete-account
+exports.deleteAccount = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Remove the user from DB
+    await user.deleteOne();
+
+    // Clear the auth cookie
+    res.cookie('token', '', {
+      httpOnly: true,
+      expires: new Date(0),
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Account deleted successfully' 
+    });
+  } catch (error) {
+    console.error("Delete Account Error:", error);
+    res.status(500).json({ message: 'Server error during deletion' });
   }
 };
