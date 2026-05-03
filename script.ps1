@@ -1,4 +1,3 @@
-```powershell
 for ($i = 1; $i -le 45; $i++) {
 
     $daysAgo = Get-Random -Minimum 1 -Maximum 90
@@ -13,4 +12,4 @@ for ($i = 1; $i -le 45; $i++) {
 
     git commit -m "update project progress $i"
 }
-```
+

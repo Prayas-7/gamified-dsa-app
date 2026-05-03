@@ -8,7 +8,7 @@ build/
 out/
 .next/
 .vuepress/dist/
-
+*.ps1
 # Logs and Debugging
 npm-debug.log*
 yarn-debug.log*
@@ -22,6 +22,7 @@ logs/
 .env.development.local
 .env.test.local
 .env.production.local
+*.ps1 
 
 # OS Metadata
 .DS_Store
